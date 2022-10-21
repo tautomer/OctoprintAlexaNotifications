@@ -155,10 +155,5 @@ class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin
         return formatted_time
 
 
-__plugin_name__ = "Alexa Notifications"
-__plugin_version__ = "0.0.1a2"
-__plugin_description__ = (
-    "Send notifications to Amazon Echo devices on print job statuses."
-)
 __plugin_pythoncompat__ = ">=3.7,<4"
 __plugin_implementation__ = AlexaNotificationPlugin()
