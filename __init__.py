@@ -6,24 +6,28 @@ from octoprint.plugin import EventHandlerPlugin, SettingsPlugin, TemplatePlugin
 
 
 class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin):
-    _setting_fields = [
-        "PrintStarted",
-        "PrintDone",
-        "PrintFailed",
-        "PrintCancelled",
-        "PrintPaused",
-        "PrintResumed",
-    ]
-
     def __init__(self):
-        self.job_failed = False
+        self.cancelled = False
+        self.token = None
+        self.handled_events = {
+            "PrintStarted": False,
+            "PrintDone": False,
+            "PrintFailed": False,
+            "PrintCancelled": False,
+            "PrintPaused": False,
+            "PrintResumed": False,
+        }
 
     def get_template_vars(self):
-        settings = {"token": self._settings.get(["token"])}
-        for key in self._setting_fields:
-            settings[key] = self._settings.get([key])
-        self._logger.info(f"Current settings: {settings}")
-        return settings
+        self.token = self._settings.get(["token"])
+        output = "Handled events:"
+        for key in self.handled_events:
+            self.handled_events[key] = self._settings.get([key])
+            if self.handled_events[key]:
+                output += f" {key},"
+        output = output[:-1] + "."
+        self._logger.info(f"using access code: {self.token}. {output}")
+        return self.handled_events.copy().update({"token": self.token})
 
     def get_template_configs(self):
         return [
@@ -32,20 +36,85 @@ class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin
         ]
 
     def on_event(self, event, payload):
-        # self._logger.warning(f"I got an event, which is {event}")
-        if self._settings.get([event]):
-            if event == Events.PRINT_CANCELLED:
-                self.job_failed = True
-            elif event == Events.PRINT_FAILED and self.job_failed:
-                # if job_failed = True, the cancelled job is handled already
+        self._logger.debug(
+            f"I got an event, which is {event} with payload of {payload}"
+        )
+        if self.handled_events.get(event):
+            if event == Events.PRINT_FAILED:
+                # the cancelled job is handled or ignored already
                 # no additional notifications will be sent
-                self.job_failed = False
-                return
-            # self._logger.warning(f"The payload is {payload}")
-            flnm = payload["name"]
-            elapsed_time = payload["time"]
-            status = event.replace("Print", "").lower()
-            self.send_notification(status, flnm, elapsed_time)
+                if payload["reason"] == "cancelled":
+                    return
+            self.send_notification(event, payload)
+        elif event == Events.SETTINGS_UPDATED:
+            self._logger.debug("update settings instantly")
+            return self.get_template_vars()
+
+    def send_notification(self, event: str, payload: dict):
+        """
+        Send the notification to Echo.
+
+        Args:
+            event (str): event name
+            payload (dict): payload of the event
+        """
+        # get the access code from the settings
+        token = self._settings.get(["token"])
+        # if no access code given, throw an error
+        if not token:
+            self._logger.error(
+                "Notify me access code is NOT set. Unable to send notifications."
+            )
+        if event == Events.ERROR:
+            # TODO: handle unrecoverable errors
+            pass
+        else:
+            msg = self.print_job_messages(event, payload)
+        # build the message
+        body = json.dumps({"notification": msg, "accessCode": token})
+        self._logger.debug(f"Message body {body}")
+        # send it out
+        response = requests.post(
+            url="https://api.notifymyecho.com/v1/NotifyMe", data=body
+        )
+        # check HTTP return code, throw an error is the request fails
+        if response.ok:
+            self._logger.debug(f"Notification successfully sent to your Echo devices.")
+        else:
+            self._logger.error(
+                (
+                    "Failed to send the notification."
+                    f"HTTP error code {response.status_code}. Reason {response.reason}."
+                )
+            )
+
+    def print_job_messages(self, event: str, payload: dict):
+        """
+        Construct the message for the notification for a print related event.
+
+        Args:
+            event (str): event name
+            payload (dict): payload of the event
+
+        Returns:
+            str: message
+        """
+        status = event[5:].lower()
+        flnm = payload["name"]
+        msg = f"Print job {flnm} is {status}!"
+        if status == "started" or status == "paused" or status == "resumed":
+            return msg
+        elapsed_time = payload["time"]
+        # format time
+        elapsed_time = self.time_format(elapsed_time)
+        msg += f" Time taken {elapsed_time}."
+        if status == "failed":
+            if payload["reason"] == "error":
+                error_msg = payload["error"]
+                if not error_msg:
+                    error_msg = "empty"
+            msg += f" Failure was because of error. Error message was {error_msg}"
+        return msg
 
     @staticmethod
     def time_format(elapsed_time: float):
@@ -85,50 +154,9 @@ class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin
                 formatted_time += "s"
         return formatted_time
 
-    def send_notification(self, status: str, file: str, elapsed_time: float):
-        """
-        Send the notification to Echo.
-
-        Args:
-            status (str): the status of the job
-            file (str): name of the print
-            elapsed_time (float): elapsed time from the Octoprint payload
-        """
-        # get the access code from the settings
-        token = self._settings.get(["token"])
-        # if no access code given, throw an error
-        if not token:
-            self._logger.error(
-                "Notify me access code is NOT set. Unable to send notifications."
-            )
-        # format time
-        elapsed_time = self.time_format(elapsed_time)
-        # build the message
-        body = json.dumps(
-            {
-                "notification": f"Print job {file} is {status}! Time taken {elapsed_time}.",
-                "accessCode": token,
-            }
-        )
-        # self._logger.warning(f"Message body {body}")
-        # send it out
-        response = requests.post(
-            url="https://api.notifymyecho.com/v1/NotifyMe", data=body
-        )
-        # check HTTP return code, throw an error is the request fails
-        if response.ok:
-            self._logger.info(f"Notification successfully sent to your Echo devices.")
-        else:
-            self._logger.error(
-                (
-                    "Failed to send the notification."
-                    f"HTTP error code {response.status_code}. Reason {response.reason}."
-                )
-            )
-
 
 __plugin_name__ = "Alexa Notifications"
-__plugin_version__ = "0.0.1a1"
+__plugin_version__ = "0.0.1a2"
 __plugin_description__ = (
     "Send notifications to Amazon Echo devices on print job statuses."
 )
