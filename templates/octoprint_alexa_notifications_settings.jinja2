@@ -1,0 +1,38 @@
+<form class="form-horizontal">
+    <div class="control-group">
+        <label class="control-label">{{ _('Access code') }}</label>
+        <div class="controls">
+            <input type="text" class="input-block-level" data-bind="value: settings.plugins.octoprint_alexa_notifications.token"> 
+            <span class="help-block">{{ _("Access code sent to your email address when enabling the Notify Me skill") }}</span>
+        </div>
+    </div>
+    <div class="control-group">
+        <label class="control-label">{{ _('Enabled notifications') }}</label>
+        <div class="controls">
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.octoprint_alexa_notifications.PrintDone"> {{ _('Print done notification') }}
+                <span class="help-block">{{ _("Check this to enable notifications when a print is finished") }}</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.octoprint_alexa_notifications.PrintFailed"> {{ _('Print failed notification') }}
+                <span class="help-block">{{ _("Check this to enable notifications when a print is failed") }}</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.octoprint_alexa_notifications.PrintCancelled"> {{ _('Print cancelled notification') }}
+                <span class="help-block">{{ _("Check this to enable notifications when a print is cancelled") }}</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.octoprint_alexa_notifications.PrintPasued"> {{ _('Print paused notification') }}
+                <span class="help-block">{{ _("Check this to enable notifications when a print is paused") }}</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.octoprint_alexa_notifications.PrintResumed"> {{ _('Print resumed notification') }}
+                <span class="help-block">{{ _("Check this to enable notifications when a print is resumed") }}</span>
+            </label>
+            <label class="checkbox">
+                <input type="checkbox" data-bind="checked: settings.plugins.octoprint_alexa_notifications.PrintStarted"> {{ _('Print started notification') }}
+                <span class="help-block">{{ _("Check this to enable notifications when a print is started") }}</span>
+            </label>
+        </div>
+    </div>
+</form>
