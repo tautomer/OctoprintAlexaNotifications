@@ -1,4 +1,4 @@
-# octoprint_alexa_notifications
+# Octoprint Alexa Notifications
 
 A plugin for Octoprint to send notifications to Amazon Echo devices via the
 Notify Me skill.

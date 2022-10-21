@@ -1,5 +1,4 @@
 import json
-from typing import Union
 
 import requests
 from octoprint.events import Events
@@ -44,49 +43,79 @@ class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin
                 return
             # self._logger.warning(f"The payload is {payload}")
             flnm = payload["name"]
-            print_time = payload["time"]
+            elapsed_time = payload["time"]
             status = event.replace("Print", "").lower()
-            self.send_notifications(status, flnm, print_time)
+            self.send_notification(status, flnm, elapsed_time)
 
     @staticmethod
-    def time_format(print_time: Union[int, float]):
-        if type(print_time) != int:
-            if type(print_time) == float:
-                print_time = int(print_time)
-            else:
-                return
-        d = print_time // (3600 * 24)
-        h = print_time // 3600 % 24
-        m = print_time % 3600 // 60
-        s = print_time % 3600 % 60
-        converted_time = ""
-        if d > 0:
-            converted_time += f" {d} days"
-        if h > 0:
-            converted_time += f" {h} hours"
-        if m > 0:
-            converted_time += f" {m} minutes"
-        if s > 0:
-            converted_time += f" {s} seconds"
-        return converted_time
+    def time_format(elapsed_time: float):
+        """
+        Convert the elapsed time in seconds to D:H:M:S format.
+        Modified based on this post https://stackoverflow.com/a/68321739/7066315.
 
-    def send_notifications(self, status, file, print_time):
+        Args:
+            elapsed_time (float): elapsed time for the job
+
+        Returns:
+            str: formatted time string
+        """
+        # less 1 second doesn't really matter in this case
+        # get rid of it
+        elapsed_time = int(elapsed_time)
+        d = elapsed_time // (3600 * 24)
+        h = elapsed_time // 3600 % 24
+        m = elapsed_time % 3600 // 60
+        s = elapsed_time % 3600 % 60
+        formatted_time = ""
+        if d > 0:
+            formatted_time += f" {d} day"
+            if d > 1:
+                formatted_time += "s"
+        if h > 0:
+            formatted_time += f" {h} hour"
+            if h > 1:
+                formatted_time += "s"
+        if m > 0:
+            formatted_time += f" {m} minute"
+            if m > 1:
+                formatted_time += "s"
+        if s > 0:
+            formatted_time += f" {s} second"
+            if s > 1:
+                formatted_time += "s"
+        return formatted_time
+
+    def send_notification(self, status: str, file: str, elapsed_time: float):
+        """
+        Send the notification to Echo.
+
+        Args:
+            status (str): the status of the job
+            file (str): name of the print
+            elapsed_time (float): elapsed time from the Octoprint payload
+        """
+        # get the access code from the settings
         token = self._settings.get(["token"])
+        # if no access code given, throw an error
         if not token:
             self._logger.error(
-                "Notify me access code is NOT set. Unable to send notifications"
+                "Notify me access code is NOT set. Unable to send notifications."
             )
-        print_time = self.time_format(print_time)
+        # format time
+        elapsed_time = self.time_format(elapsed_time)
+        # build the message
         body = json.dumps(
             {
-                "notification": f"Print job {file} is {status}! Time taken {print_time}.",
+                "notification": f"Print job {file} is {status}! Time taken {elapsed_time}.",
                 "accessCode": token,
             }
         )
         # self._logger.warning(f"Message body {body}")
+        # send it out
         response = requests.post(
             url="https://api.notifymyecho.com/v1/NotifyMe", data=body
         )
+        # check HTTP return code, throw an error is the request fails
         if response.ok:
             self._logger.info(f"Notification successfully sent to your Echo devices.")
         else:
