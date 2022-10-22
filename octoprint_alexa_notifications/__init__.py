@@ -18,6 +18,9 @@ class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin
             "PrintResumed": False,
         }
 
+    def get_settings_defaults(self):
+        return {"token": None}
+
     def get_template_vars(self):
         self.token = self._settings.get(["token"])
         output = "Handled events:"
@@ -155,5 +158,6 @@ class AlexaNotificationPlugin(EventHandlerPlugin, SettingsPlugin, TemplatePlugin
         return formatted_time
 
 
+__plugin_name__ = "Alexa Notifications"
 __plugin_pythoncompat__ = ">=3.7,<4"
 __plugin_implementation__ = AlexaNotificationPlugin()
